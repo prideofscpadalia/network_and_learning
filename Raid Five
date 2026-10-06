@@ -80,6 +80,19 @@ virtual_disk1  virtual_disk2  virtual_disk3
 - `show` flag show after the association process complete it show which loop device with which number was assigned to us.
 > "virtual_disk2 is now associated with /dev/loop17."
 *Its time to use `mdadm` to combine our created loopbackdevices to make an RAID Array.*
+`divyanshu@fedora:~/raid-lab$ sudo mdadm --create --verbose /dev/md0 --level=5 --raid-devices=3 /dev/loop16 /dev/loop17 /dev/loop18`
+[sudo] password for divyanshu: 
+mdadm: layout defaults to left-symmetric
+mdadm: layout defaults to left-symmetric
+mdadm: chunk size defaults to 512K
+mdadm: size set to 522240K
+mdadm: Defaulting to version 1.2 metadata
+mdadm: array /dev/md0 started.
+> --create tells mdadm to create a new RAID Array
+> /dev/md0 is the name of new RAID Device
+> --level=5 is the RAID (striping parity)
+> --raid-devices=3 are the total number of RAID devices
+**Now the next step in the process is to verify the RAID **
 
 
 
