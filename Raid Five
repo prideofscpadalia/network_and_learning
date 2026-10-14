@@ -25,7 +25,8 @@ here -y flag allow all the permission on your behalf so you dont have to type ye
 512+0 records in
 512+0 records out
 536870912 bytes (537 MB, 512 MiB) copied, 0.350144 s, 1.5 GB/s
-> dd reads a sequence of bytes from an input, processes them in blocks, and writes those bytes to an output.Historically, dd was influenced by IBM JCL terminology, with the name often jokingly interpreted as "data duplicator." Unlike normal commands such as: `cp file1 file2` dd was designed around converting/copying data streams at a low level.dd doesn't understand filesystems `Suppose you have:/dev/sda` It simply sees: `/dev/sda 
+> dd reads a sequence of bytes from an input, processes them in blocks, and writes those bytes to an output.Historically, dd was influenced by IBM JCL terminology, with the name often jokingly interpreted as "data duplicator." 
+Unlike normal commands such as: `cp file1 file2` dd was designed around converting/copying data streams at a low level.dd doesn't understand filesystems `Suppose you have:/dev/sda` It simply sees: `/dev/sda 
         ↓
 bytes bytes bytes bytes bytes bytes...
         ↓
@@ -179,9 +180,27 @@ Raid 5 Parity Test - Data Integrity Check
 20+0 records in
 20+0 records out
 20971520 bytes (21 MB, 20 MiB) copied, 0.0854135 s, 246 MB/s
+**Its time to Generate SHA256 Checksum**
+`divyanshu@fedora:/mnt/raid_test$ sha256sum test_note.txt payload.bin | sudo tee hashes.sha256`
+d9109465857c1d3aa4dee38171f7e0fe5a651dddf80b3c529add399d8d0356be  test_note.txt
+b67fc327b4419b8c52e2cc5b377c73917517c244abe5a901f6975f5808290f65  payload.bin
+checksums plays very crucial parts. As it helps us to keep the orignal file safe and secure. A checksum is a unique hexadecimal fingerprint generated from a file or data stream using Secure Hash Algorithm 256 - bit.
+> SHA256 is a digital fingerprint
+> Determinitstic - as running a hash on the exact data will generate exact same result all time.
+> Avalanche Effect: changing even a single bit can change the entire hash.
+> Why We Need to Use it on our RAID 5 ? - Integrity Verification: In our RAID test, we created checksums.sha256 before failing the drive. When running sha256sum -c, the system read the files while the array was degraded (computing data on the fly from parity) and checked the recalculated hash against the recorded hash. Since they matched (OK), it proved mathematically that zero bits were lost or corrupted.
 
-
-
+**Checking the Array baseline to know that the RAID 5 was completly normal and healthy**
+> When we check it for our RAID 5 we basically check it for 3 things
+- IF the drives are mounted and accessible
+- If all Drives are up [UUU]
+- the state of the drive is clean
+`divyanshu@fedora:/mnt/raid_test$ cat /proc/mdstat`
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop18[3] loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
+      
+unused devices: <none>
 
 
 
