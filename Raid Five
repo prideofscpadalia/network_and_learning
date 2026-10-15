@@ -201,6 +201,55 @@ md0 : active raid5 loop18[3] loop17[1] loop16[0]
       1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
       
 unused devices: <none>
+** Now We will delibratly fail the RAID 5 configuration with only 1 disk **
+** Because RAID 5 can survive only one drive faulure **
+** The fail command that we will be using is not to destroy the volume as it is part of internal disk storage **
+** This command is basically tells the RAID config that its one drive is failed that means RAID 5 won't recognize it **
+`divyanshu@fedora:/mnt/raid_test$ sudo mdadm --manage /dev/md0 --fail /dev/loop18` 
+[sudo] password for divyanshu: 
+mdadm: set /dev/loop18 faulty in /dev/md0
+> loop18 because it was the disk that was used for RAID 5 config along with other loop 16, loop17
+> since drive failed which can be verified 
+``divyanshu@fedora:/mnt/raid_test$ cat /proc/mdstat` 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop18[3](F) loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/2] [UU_]
+      
+unused devices: <none>
+divyanshu@fedora:/mnt/raid_test$ sudo mdadm --detail /dev/md0 
+/dev/md0:
+           Version : 1.2
+     Creation Time : Sun Sep 27 12:37:08 2026
+        Raid Level : raid5
+        Array Size : 1044480 (1020.00 MiB 1069.55 MB)
+     Used Dev Size : 522240 (510.00 MiB 534.77 MB)
+      Raid Devices : 3
+     Total Devices : 3
+       Persistence : Superblock is persistent
+
+       Update Time : Wed Sep 30 14:13:53 2026
+             State : clean, degraded 
+    Active Devices : 2
+   Working Devices : 2
+    Failed Devices : 1
+     Spare Devices : 0
+
+            Layout : left-symmetric
+        Chunk Size : 512K
+
+Consistency Policy : resync
+
+              Name : fedora:0  (local to host fedora)
+              UUID : eea62053:4feb1501:516c1edc:e5738e32
+            Events : 20
+
+    Number   Major   Minor   RaidDevice State
+       0       7       16        0      active sync   /dev/loop16
+       1       7       17        1      active sync   /dev/loop17
+       -       0        0        2      removed
+
+       3       7       18        -      faulty   /dev/loop18
+** This is the detailed description that we have successfully failed one drive in RAID 5 **
 
 
 
