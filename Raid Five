@@ -250,6 +250,79 @@ Consistency Policy : resync
 
        3       7       18        -      faulty   /dev/loop18
 ** This is the detailed description that we have successfully failed one drive in RAID 5 **
+** Its time to check if we still can read the data even after 1 drive failed **
+** And we do this with help of checksum test if data is intact then checksum wont fail **
+`divyanshu@fedora:/mnt/raid_test$ sha256sum -c hashes.sha256` 
+test_note.txt: OK
+payload.bin: OK
+** For testing purpose we will add some more data to the drive **
+`divyanshu@fedora:/mnt/raid_test$ echo "this data is inserted after one drive failed" | sudo tee -a test_note.txt` 
+[sudo] password for divyanshu: 
+this data is inserted after one drive failed
+`divyanshu@fedora:/mnt/raid_test$ cat test_note.txt` 
+Raid 5 Parity Test _ Data Integrity Check 
+third line test 
+this data is inserted after one drive failed
+* What Happened here *
+* The Linux kernel dynamically recalculated your missing blocks on the fly using XOR logic against the surviving data and parity blocks. *
+* We will remove the degraded drive *
+`divyanshu@fedora:/mnt/raid_test$ sudo mdadm --manage /dev/md0 --remove /dev/loop18`
+mdadm: hot removed /dev/loop18 from /dev/md0
+** Its Time to create a new virtual disk and then test again **
+divyanshu@fedora:~$ dd if=/dev/zero of=virtual_disk_replacement bs=1M count=512
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 0.400343 s, 1.3 GB/s
+## map newly created drive
+divyanshu@fedora:~$ sudo losetup --show -f virtual_disk_replacement 
+[sudo] password for divyanshu: 
+/dev/loop19
+## add replacement drive
+divyanshu@fedora:~$ sudo mdadm --manage /dev/md0 --add /dev/loop19
+mdadm: added /dev/loop19
+##check the status
+divyanshu@fedora:~$ cat /proc/mdstat 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop19[3] loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
+      
+unused devices: <none>
+divyanshu@fedora:~$ 
+divyanshu@fedora:~$ sudo mdadm --detail /dev/md0 
+/dev/md0:
+           Version : 1.2
+     Creation Time : Sun Sep 27 12:37:08 2026
+        Raid Level : raid5
+        Array Size : 1044480 (1020.00 MiB 1069.55 MB)
+     Used Dev Size : 522240 (510.00 MiB 534.77 MB)
+      Raid Devices : 3
+     Total Devices : 3
+       Persistence : Superblock is persistent
+
+       Update Time : Wed Sep 30 14:27:54 2026
+             State : clean 
+    Active Devices : 3
+   Working Devices : 3
+    Failed Devices : 0
+     Spare Devices : 0
+
+            Layout : left-symmetric
+        Chunk Size : 512K
+
+Consistency Policy : resync
+
+              Name : fedora:0  (local to host fedora)
+              UUID : eea62053:4feb1501:516c1edc:e5738e32
+            Events : 58
+
+    Number   Major   Minor   RaidDevice State
+       0       7       16        0      active sync   /dev/loop16
+       1       7       17        1      active sync   /dev/loop17
+       3       7       19        2      active sync   /dev/loop19
+---------------------------------------------------------------------------------
+** Since we Practiced with expected failure **
+## now we will go for catestrophic failure where both drive will fail and see how RAID 5 hold against that and we will also get the answer why RAID 5 is now not used
+
 
 
 
