@@ -1,0 +1,399 @@
+#Raid 5 about creation write and destruction
+Since we lack the actual RAID storage device and stimulator so we created our own local machine 
+and its operating system into a RAID so we can practice and stimulate actual real life RAID
+## What is RAID ?
+RAID stands for Redundant Array Independent Disks its main function is to combine multiple storage and make them run as 1 single unit to imporve performace, data protection, storage capacity.
+There are multiple types of RAID based on their use and purpose they are used. Few common RAID are RAID0, RAID1, RAID5, RAID6, RAID10 etc
+Few of them are stand alone RAID and others are combination of stand alone RAID like RAID10 is combination of RAID0 and RAID1.
+----------
+In this tutorial we will learn to creat the raid using cli and then purposly destroy them so we can have a better idea of how RAID works in real life and how it saves the data of 
+million doller companies.
+Lets jump into it.
+----------
+**Prerequsit**
+- A system running fedora OS
+- Root privillage
+*First we neet to install `mdadm` because it is the standard tool for managing RAID in Linux.*
+*It is important that mdadm is installed in the system.*
+`sudo dnf install mdadm -y`
+here -y flag allow all the permission on your behalf so you dont have to type yes again and again
+- we created a direcoty raid-lab where we will practice
+`divyanshu@fedora:~$ mkdir raid-lab`
+**Step 2 create Virtual Disk Files**
+*Instead of physical storage we will create virtual disk storage using `dd` command.And we will create 512 mb storage files enough for practice*
+`divyanshu@fedora:~/raid-lab$ sudo dd if=/dev/zero of=virtual_disk1 bs=1M count=512`
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 0.350144 s, 1.5 GB/s
+> dd reads a sequence of bytes from an input, processes them in blocks, and writes those bytes to an output.Historically, dd was influenced by IBM JCL terminology, with the name often jokingly interpreted as "data duplicator." 
+Unlike normal commands such as: `cp file1 file2` dd was designed around converting/copying data streams at a low level.dd doesn't understand filesystems `Suppose you have:/dev/sda` It simply sees: `/dev/sda 
+        ↓
+bytes bytes bytes bytes bytes bytes...
+        ↓
+       dd
+        ↓
+disk.img `
+> `if` and `of` don't necessarily mean files. This is where Linux becomes interesting. Linux exposes many devices as files. For example:
+- /dev/sda
+- /dev/nvme0n1
+- /dev/sdb
+- /dev/zero
+- /dev/random
+So:
+`dd if=/dev/zero of=test.img bs=1M count=100`
+means:
+``
+/dev/zero
+    ↓
+100 MB of zeros
+    ↓
+test.img
+``
+*You just created approximately a 100 MB file containing zero bytes.*
+**In Simple Words `dd` command is dangerous if used carelessly**
+> if=/dev/zero: The *input file* (a stream of zeros).
+> of=virtual_diskX: The *output file* name.
+> bs=1M: *Block size* of 1 Megabyte.
+> count=100: Create 100 blocks (totaling 100MB)
+`divyanshu@fedora:~/raid-lab$ sudo dd if=/dev/zero of=virtual_disk2 bs=1M count=512`
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 0.363825 s, 1.5 GB/s
+`divyanshu@fedora:~/raid-lab$ sudo dd if=/dev/zero of=virtual_disk3 bs=1M count=512`
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 0.413023 s, 1.3 GB/s
+after firing the command we successfully create the virtual space for our raid with 3 storage inside a folder name raid-lab
+-confirming the virtual disks 
+`divyanshu@fedora:~/raid-lab$ ls`
+virtual_disk1  virtual_disk2  virtual_disk3
+*now we need to map files to loopback devices*
+*why we need to do this ? Because linux cannot directly use standard(regular) files i.e (virtual disks we created) as block devices for RAID.And loopset is a bridge between regular file and device block .
+### Map the files to loopback devices and show the assigned device name
+`divyanshu@fedora:~/raid-lab$ sudo losetup --show -f virtual_disk1`
+/dev/loop16
+`divyanshu@fedora:~/raid-lab$ sudo losetup --show -f virtual_disk2`
+/dev/loop17
+`divyanshu@fedora:~/raid-lab$ sudo losetup --show -f virtual_disk3`
+/dev/loop18
+- `losetup` is the command that allow linux to treat a regular file as block device
+- flag `f` is for finding the first available loop device in our case since we already have installed snap and flatpak so loop1 and other were not first available device and loop16 was first available device.
+- `show` flag show after the association process complete it show which loop device with which number was assigned to us.
+> "virtual_disk2 is now associated with /dev/loop17."
+*Its time to use `mdadm` to combine our created loopbackdevices to make an RAID Array.*
+`divyanshu@fedora:~/raid-lab$ sudo mdadm --create --verbose /dev/md0 --level=5 --raid-devices=3 /dev/loop16 /dev/loop17 /dev/loop18`
+[sudo] password for divyanshu: 
+mdadm: layout defaults to left-symmetric
+mdadm: layout defaults to left-symmetric
+mdadm: chunk size defaults to 512K
+mdadm: size set to 522240K
+mdadm: Defaulting to version 1.2 metadata
+mdadm: array /dev/md0 started.
+> --create tells mdadm to create a new RAID Array
+> /dev/md0 is the name of new RAID Device
+> --level=5 is the RAID (striping parity)
+> --raid-devices=3 are the total number of RAID devices
+**Now the next step in the process is to verify the RAID **
+**mdstat is a directory where kernal keep real time status of RAID**
+`divyanshu@fedora:~/raid-lab$ cat /proc/mdstat`
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop18[3] loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
+      
+unused devices: <none>
+**Another Way to check in detail is to ceck directly indise the name of RAID in our case it is /dev/md0 using RAID manager i.e mdadm**
+`divyanshu@fedora:~/raid-lab$ sudo mdadm --detail /dev/md0` 
+[sudo] password for divyanshu: 
+/dev/md0:
+           Version : 1.2
+     Creation Time : Sun Sep 27 12:37:08 2026
+        Raid Level : raid5
+        Array Size : 1044480 (1020.00 MiB 1069.55 MB)
+     Used Dev Size : 522240 (510.00 MiB 534.77 MB)
+      Raid Devices : 3
+     Total Devices : 3
+       Persistence : Superblock is persistent
+
+       Update Time : Sun Sep 27 12:37:11 2026
+             State : clean 
+    Active Devices : 3
+   Working Devices : 3
+    Failed Devices : 0
+     Spare Devices : 0
+
+            Layout : left-symmetric
+        Chunk Size : 512K
+
+Consistency Policy : resync
+
+              Name : fedora:0  (local to host fedora)
+              UUID : eea62053:4feb1501:516c1edc:e5738e32
+            Events : 18
+
+    Number   Major   Minor   RaidDevice State
+       0       7       16        0      active sync   /dev/loop16
+       1       7       17        1      active sync   /dev/loop17
+       3       7       18        2      active sync   /dev/loop18
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$
+** It is confirmed that the RAID array exist which we checked on /dev/md0. Now treat it like a normal hard drive and format it in filesystem that is compatible for RAID**
+** The explicit reason why we WILL BE using ext4 is that , this fs includes explicit geometry features built to optimize array performance and lifespan. Especially when combined with Linux software RAID (mdadm) or hardware controllers**
+`divyanshu@fedora:~/raid-lab$ sudo mkfs.ext4 /dev/md0`
+[sudo] password for divyanshu: 
+mke2fs 1.47.2 (1-Jan-2025)
+Creating filesystem with 261120 4k blocks and 65280 inodes
+Filesystem UUID: b3f8b6c7-5e1f-4ec7-886d-0c5e07f27048
+Superblock backups stored on blocks: 
+    32768, 98304, 163840, 229376
+
+Allocating group tables: done                            
+Writing inode tables: done                            
+Creating journal (4096 blocks): done
+Writing superblocks and filesystem accounting information: done
+> mkfs - make file system
+> ext4 is a filesystem specially used in raid 
+> /dev/md0 is the name of the RAID which we declared earlier
+**since a fs is assigned now need to mount it on my system**
+**for that we will create a directory inside mnt directory of OS with name raid_test and then mount our newly created RAID drive there**
+`divyanshu@fedora:~/raid-lab$ sudo mkdir /mnt/raid_test`
+**Next is to mount the /dev/md0 to /mnt/raid_test**
+`divyanshu@fedora:~/raid-lab$ sudo mount /dev/md0 /mnt/raid_test/`
+**it is created now we need to change directory to mnt/raid_test**
+---
+**Next step for us now is to Wrtie data inside the RAID 5 and test it by delebratly destroying 1 of the drive and retrive the data then rebuild it again**
+`divyanshu@fedora:/mnt/raid_test$ echo "Raid 5 Parity Test - Data Integrity Check" | sudo tee test_note.txt`
+[sudo] password for divyanshu: 
+Raid 5 Parity Test - Data Integrity Check
+> there `tee` command took input from left side assign it to right side and then print it.
+`divyanshu@fedora:/mnt/raid_test$ ls -lh`
+total 20K
+drwx------  2 root root 16K Sep 27 13:44 lost+found
+-rw-r--r--. 1 root root  42 Sep 30 10:10 test_note.txt
+`divyanshu@fedora:/mnt/raid_test$ cat test_note.txt`
+Raid 5 Parity Test - Data Integrity Check
+**add some extra data**
+`divyanshu@fedora:/mnt/raid_test$ echo "third line test " | sudo tee -a test_note.txt`
+> here -a flag tells to append the new data without overriding the previous data.
+** the file is small and tiny so we will put some 20MB of binary data **
+** for this we will again use dd the data duplicator with its input and output file flags with bytesize and count **
+`divyanshu@fedora:/mnt/raid_test$ sudo dd if=/dev/urandom of=payload.bin bs=1M count=20 status=progress`
+20+0 records in
+20+0 records out
+20971520 bytes (21 MB, 20 MiB) copied, 0.0854135 s, 246 MB/s
+**Its time to Generate SHA256 Checksum**
+`divyanshu@fedora:/mnt/raid_test$ sha256sum test_note.txt payload.bin | sudo tee hashes.sha256`
+d9109465857c1d3aa4dee38171f7e0fe5a651dddf80b3c529add399d8d0356be  test_note.txt
+b67fc327b4419b8c52e2cc5b377c73917517c244abe5a901f6975f5808290f65  payload.bin
+checksums plays very crucial parts. As it helps us to keep the orignal file safe and secure. A checksum is a unique hexadecimal fingerprint generated from a file or data stream using Secure Hash Algorithm 256 - bit.
+> SHA256 is a digital fingerprint
+> Determinitstic - as running a hash on the exact data will generate exact same result all time.
+> Avalanche Effect: changing even a single bit can change the entire hash.
+> Why We Need to Use it on our RAID 5 ? - Integrity Verification: In our RAID test, we created checksums.sha256 before failing the drive. When running sha256sum -c, the system read the files while the array was degraded (computing data on the fly from parity) and checked the recalculated hash against the recorded hash. Since they matched (OK), it proved mathematically that zero bits were lost or corrupted.
+
+**Checking the Array baseline to know that the RAID 5 was completly normal and healthy**
+> When we check it for our RAID 5 we basically check it for 3 things
+- IF the drives are mounted and accessible
+- If all Drives are up [UUU]
+- the state of the drive is clean
+`divyanshu@fedora:/mnt/raid_test$ cat /proc/mdstat`
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop18[3] loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
+      
+unused devices: <none>
+** Now We will delibratly fail the RAID 5 configuration with only 1 disk **
+** Because RAID 5 can survive only one drive faulure **
+** The fail command that we will be using is not to destroy the volume as it is part of internal disk storage **
+** This command is basically tells the RAID config that its one drive is failed that means RAID 5 won't recognize it **
+`divyanshu@fedora:/mnt/raid_test$ sudo mdadm --manage /dev/md0 --fail /dev/loop18` 
+[sudo] password for divyanshu: 
+mdadm: set /dev/loop18 faulty in /dev/md0
+> loop18 because it was the disk that was used for RAID 5 config along with other loop 16, loop17
+> since drive failed which can be verified 
+``divyanshu@fedora:/mnt/raid_test$ cat /proc/mdstat` 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop18[3](F) loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/2] [UU_]
+      
+unused devices: <none>
+divyanshu@fedora:/mnt/raid_test$ sudo mdadm --detail /dev/md0 
+/dev/md0:
+           Version : 1.2
+     Creation Time : Sun Sep 27 12:37:08 2026
+        Raid Level : raid5
+        Array Size : 1044480 (1020.00 MiB 1069.55 MB)
+     Used Dev Size : 522240 (510.00 MiB 534.77 MB)
+      Raid Devices : 3
+     Total Devices : 3
+       Persistence : Superblock is persistent
+
+       Update Time : Wed Sep 30 14:13:53 2026
+             State : clean, degraded 
+    Active Devices : 2
+   Working Devices : 2
+    Failed Devices : 1
+     Spare Devices : 0
+
+            Layout : left-symmetric
+        Chunk Size : 512K
+
+Consistency Policy : resync
+
+              Name : fedora:0  (local to host fedora)
+              UUID : eea62053:4feb1501:516c1edc:e5738e32
+            Events : 20
+
+    Number   Major   Minor   RaidDevice State
+       0       7       16        0      active sync   /dev/loop16
+       1       7       17        1      active sync   /dev/loop17
+       -       0        0        2      removed
+
+       3       7       18        -      faulty   /dev/loop18
+** This is the detailed description that we have successfully failed one drive in RAID 5 **
+** Its time to check if we still can read the data even after 1 drive failed **
+** And we do this with help of checksum test if data is intact then checksum wont fail **
+`divyanshu@fedora:/mnt/raid_test$ sha256sum -c hashes.sha256` 
+test_note.txt: OK
+payload.bin: OK
+** For testing purpose we will add some more data to the drive **
+`divyanshu@fedora:/mnt/raid_test$ echo "this data is inserted after one drive failed" | sudo tee -a test_note.txt` 
+[sudo] password for divyanshu: 
+this data is inserted after one drive failed
+`divyanshu@fedora:/mnt/raid_test$ cat test_note.txt` 
+Raid 5 Parity Test _ Data Integrity Check 
+third line test 
+this data is inserted after one drive failed
+* What Happened here *
+* The Linux kernel dynamically recalculated your missing blocks on the fly using XOR logic against the surviving data and parity blocks. *
+* We will remove the degraded drive *
+`divyanshu@fedora:/mnt/raid_test$ sudo mdadm --manage /dev/md0 --remove /dev/loop18`
+mdadm: hot removed /dev/loop18 from /dev/md0
+** Its Time to create a new virtual disk and then test again **
+divyanshu@fedora:~$ dd if=/dev/zero of=virtual_disk_replacement bs=1M count=512
+512+0 records in
+512+0 records out
+536870912 bytes (537 MB, 512 MiB) copied, 0.400343 s, 1.3 GB/s
+## map newly created drive
+divyanshu@fedora:~$ sudo losetup --show -f virtual_disk_replacement 
+[sudo] password for divyanshu: 
+/dev/loop19
+## add replacement drive
+before this i face a issue where i mistakenly typo the dd command to create the new replacement virtual disk
+and when i tried to add it in my RAID5 is gave me a error that says mdadm: /dev/loop19 not large enough to join array
+so i google the error and got to know that it was issue with the size of new virtual disk created
+as next to fix this error i dignosed the size of virtual disk attached to loop19 created by `sudo blockdev --getsize64 /dev/loop19` and the size of other virtual disk in image with `sudo blockdev --getsize64 /dev/loop18` and the difference i got was `536870912` in loop18 and `512` in loop19 it was huge.
+so i check which virtual disk is attached to loop19 and it was the newly created virtual disk which was `virtual_disk_replacement` 
+as the next step detach loop19 with that file `sudo losetup -d /dev/loop19`  here -d flag is for detachment
+then i resised the virtual disk with `divyanshu@fedora:~/raid-lab$ truncate -s 536870912 /home/divyanshu/raid-lab/virtual_disk_replacement`
+here i found one another error which i do not google - truncate: cannot open '/home/divyanshu/raid-lab/virtual_disk_replacement' for writing: Permission denied
+so i gave write permission to this virtual disk with chmod
+then i again tried it worked so to verify the new size with blockdev --getsize /dev/loop19
+divyanshu@fedora:~$ sudo mdadm --manage /dev/md0 --add /dev/loop19
+mdadm: added /dev/loop19
+##check the status
+divyanshu@fedora:~$ cat /proc/mdstat 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop19[3] loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/3] [UUU]
+      
+unused devices: <none>
+divyanshu@fedora:~$ 
+divyanshu@fedora:~$ sudo mdadm --detail /dev/md0 
+/dev/md0:
+           Version : 1.2
+     Creation Time : Sun Sep 27 12:37:08 2026
+        Raid Level : raid5
+        Array Size : 1044480 (1020.00 MiB 1069.55 MB)
+     Used Dev Size : 522240 (510.00 MiB 534.77 MB)
+      Raid Devices : 3
+     Total Devices : 3
+       Persistence : Superblock is persistent
+
+       Update Time : Wed Sep 30 14:27:54 2026
+             State : clean 
+    Active Devices : 3
+   Working Devices : 3
+    Failed Devices : 0
+     Spare Devices : 0
+
+            Layout : left-symmetric
+        Chunk Size : 512K
+
+Consistency Policy : resync
+
+              Name : fedora:0  (local to host fedora)
+              UUID : eea62053:4feb1501:516c1edc:e5738e32
+            Events : 58
+
+    Number   Major   Minor   RaidDevice State
+       0       7       16        0      active sync   /dev/loop16
+       1       7       17        1      active sync   /dev/loop17
+       3       7       19        2      active sync   /dev/loop19
+---------------------------------------------------------------------------------
+** Since we Practiced with expected failure **
+## now we will go for catestrophic failure where both drive will fail and see how RAID 5 hold against that and we will also get the answer why RAID 5 is now not used
+
+when i create the loop19 and added to my RAID5 and tried to test catestrophic failure by failing 2 drives simultanoulsly.
+But here i found interesting thing and it was that - mdadm do not allow you to fail 2 drives so i have to stop the array and detach other disk on the RAID5 
+Or i need to rebuilt the loop19 only then i can fail
+divyanshu@fedora:~/raid-lab$ sudo mdadm --manage /dev/md0 --fail /dev/loop19
+mdadm: set /dev/loop19 faulty in /dev/md0
+divyanshu@fedora:~/raid-lab$ sudo mdadm --manage /dev/md0 --fail /dev/loop17
+mdadm: Cannot remove /dev/loop17 from /dev/md0, array will be failed.
+divyanshu@fedora:~/raid-lab$ cat /proc/mdstat 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop19[3](F) loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/2] [UU_]
+      
+unused devices: <none>
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$
+mdadm won't let you --fail a second disk while active, so stop the array instead:
+So i decided to stop the array
+divyanshu@fedora:~/raid-lab$ sudo mdadm --stop /dev/md0 
+[sudo] password for divyanshu: 
+mdadm: stopped /dev/md0
+divyanshu@fedora:~/raid-lab$ 
+I pousposly detached loop17 from my RAID5 array
+divyanshu@fedora:~/raid-lab$ sudo losetup -d /dev/loop17
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$ sudo mdadm --assemble /dev/md0 /dev/loop16
+mdadm: /dev/md0 assembled from 1 drive - not enough to start the array.
+See the above command and its result i says the RAID5 array cannot be started with only 1 disk 
+since i just stopped the array if i again reattach loop17 and then force asseble both loop16 and loop17 i might get my data back.
+and the command will be - sudo mdadm --assemble --force /dev/md0 /dev/loop16 /dev/loop17
+and to verify this - cat /proc/mdstat
+
+That was the end of our RAID5 lab
+Thank You.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
