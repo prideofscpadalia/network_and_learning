@@ -333,7 +333,40 @@ Consistency Policy : resync
 ** Since we Practiced with expected failure **
 ## now we will go for catestrophic failure where both drive will fail and see how RAID 5 hold against that and we will also get the answer why RAID 5 is now not used
 
+when i create the loop19 and added to my RAID5 and tried to test catestrophic failure by failing 2 drives simultanoulsly.
+But here i found interesting thing and it was that - mdadm do not allow you to fail 2 drives so i have to stop the array and detach other disk on the RAID5 
+Or i need to rebuilt the loop19 only then i can fail
+divyanshu@fedora:~/raid-lab$ sudo mdadm --manage /dev/md0 --fail /dev/loop19
+mdadm: set /dev/loop19 faulty in /dev/md0
+divyanshu@fedora:~/raid-lab$ sudo mdadm --manage /dev/md0 --fail /dev/loop17
+mdadm: Cannot remove /dev/loop17 from /dev/md0, array will be failed.
+divyanshu@fedora:~/raid-lab$ cat /proc/mdstat 
+Personalities : [raid4] [raid5] [raid6] 
+md0 : active raid5 loop19[3](F) loop17[1] loop16[0]
+      1044480 blocks super 1.2 level 5, 512k chunk, algorithm 2 [3/2] [UU_]
+      
+unused devices: <none>
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$
+mdadm won't let you --fail a second disk while active, so stop the array instead:
+So i decided to stop the array
+divyanshu@fedora:~/raid-lab$ sudo mdadm --stop /dev/md0 
+[sudo] password for divyanshu: 
+mdadm: stopped /dev/md0
+divyanshu@fedora:~/raid-lab$ 
+I pousposly detached loop17 from my RAID5 array
+divyanshu@fedora:~/raid-lab$ sudo losetup -d /dev/loop17
+divyanshu@fedora:~/raid-lab$
+divyanshu@fedora:~/raid-lab$ sudo mdadm --assemble /dev/md0 /dev/loop16
+mdadm: /dev/md0 assembled from 1 drive - not enough to start the array.
+See the above command and its result i says the RAID5 array cannot be started with only 1 disk 
+since i just stopped the array if i again reattach loop17 and then force asseble both loop16 and loop17 i might get my data back.
+and the command will be - sudo mdadm --assemble --force /dev/md0 /dev/loop16 /dev/loop17
+and to verify this - cat /proc/mdstat
 
+That was the end of our RAID5 lab
+Thank You.
 
 
 
