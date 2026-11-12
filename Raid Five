@@ -278,6 +278,16 @@ divyanshu@fedora:~$ sudo losetup --show -f virtual_disk_replacement
 [sudo] password for divyanshu: 
 /dev/loop19
 ## add replacement drive
+before this i face a issue where i mistakenly typo the dd command to create the new replacement virtual disk
+and when i tried to add it in my RAID5 is gave me a error that says mdadm: /dev/loop19 not large enough to join array
+so i google the error and got to know that it was issue with the size of new virtual disk created
+as next to fix this error i dignosed the size of virtual disk attached to loop19 created by `sudo blockdev --getsize64 /dev/loop19` and the size of other virtual disk in image with `sudo blockdev --getsize64 /dev/loop18` and the difference i got was `536870912` in loop18 and `512` in loop19 it was huge.
+so i check which virtual disk is attached to loop19 and it was the newly created virtual disk which was `virtual_disk_replacement` 
+as the next step detach loop19 with that file `sudo losetup -d /dev/loop19`  here -d flag is for detachment
+then i resised the virtual disk with `divyanshu@fedora:~/raid-lab$ truncate -s 536870912 /home/divyanshu/raid-lab/virtual_disk_replacement`
+here i found one another error which i do not google - truncate: cannot open '/home/divyanshu/raid-lab/virtual_disk_replacement' for writing: Permission denied
+so i gave write permission to this virtual disk with chmod
+then i again tried it worked so to verify the new size with blockdev --getsize /dev/loop19
 divyanshu@fedora:~$ sudo mdadm --manage /dev/md0 --add /dev/loop19
 mdadm: added /dev/loop19
 ##check the status
